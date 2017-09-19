@@ -1,0 +1,17 @@
+<style>
+    .container {
+        position: absolute;
+        transform-origin: 0 0;
+        left: 50%;
+        top: 50%;
+        width: 10px;
+        height: 10px;
+        background: #eee;
+    } 
+</style>
+
+<div class="container" style="transform: scaleX({{scale}}) scaleY(0.7) translateZ(0.1px);">
+    <div>
+        <sierpinski-triangle x={{x}} y={{y}} s={{s}} seconds={{seconds}}></sierpinski-triangle>
+    </div>
+</div>

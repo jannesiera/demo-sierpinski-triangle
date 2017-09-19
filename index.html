@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html style="width: 100%; height: 100%; overflow: hidden">
+    <head>
+        <title>Index</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/1.0.10/custom-elements-es5-adapter.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/1.0.11/webcomponents-lite.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-polyfill/6.26.0/polyfill.min.js"></script>
+        
+        <script src="./dist/bundle.js"></script>
+    </head>
+    <body>
+        <example-application id="app"></example-application>
+
+        <script>
+        window.targetSize = 100;
+        window.addEventListener('WebComponentsReady', function(e) {
+            var start = new Date().getTime();
+            var app = document.querySelector('#app');
+            function update() {
+                app.elapsed = new Date().getTime() - start;
+                requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        });
+        </script>
+    </body>
+</html>

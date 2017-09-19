@@ -1,0 +1,35 @@
+{
+  "name": "demo-sierpinski-triangle",
+  "version": "0.0.0",
+  "description": "A port of the react fiber-vs-stack demo with functional web components and handlebars live templates and incremental dom.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jannesiera/demo-sierpinski-triangle.git"
+  },
+  "author": "Janne Siera",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/jannesiera/demo-sierpinski-triangle/issues"
+  },
+  "homepage": "https://github.com/jannesiera/demo-sierpinski-triangle#readme",
+  "dependencies": {
+    "babel-plugin-transform-builtin-classes": "^0.4.0",
+    "handlebars-live-templates-component": "^0.0.0",
+    "handlebars-live-templates-idom": "^0.0.0",
+    "incremental-dom": "^0.5.1",
+    "render-component": "^0.0.1"
+  },
+  "devDependencies": {
+    "babel": "^6.23.0",
+    "babel-preset-es2015": "^6.24.1",
+    "babelify": "^7.3.0",
+    "grunt": "^1.0.1",
+    "grunt-browserify": "^5.2.0",
+    "grunt-contrib-watch": "^1.0.0",
+    "grunt-run": "^0.8.0"
+  }
+}

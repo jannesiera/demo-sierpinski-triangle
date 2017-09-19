@@ -1,0 +1,22 @@
+<style>
+    .dot {
+        position: absolute;
+        background: #61dafb;
+        font: normal 15px sans-serif;
+        text-align: center;
+        cursor: pointer;
+    }
+
+    .hover {
+        background: #ff0;
+    }
+</style>
+
+<div class="dot {{#if hover}}hover{{/if}}" onmouseover={{mouseover}} onmouseleave={{mouseleave}} style="width: {{width}}px; height: {{height}}px; left: {{left}}px; top: {{top}}px; border-radius: {{borderRadius}}px; line-height: {{lineHeight}}px;">
+    {{#if hover}}
+        *{{seconds}}*
+    {{/if}}
+    {{#if nohover}}
+        {{seconds}}
+    {{/if}}
+</div>
