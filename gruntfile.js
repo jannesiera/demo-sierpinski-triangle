@@ -18,9 +18,6 @@ module.exports = function (grunt) {
                     ]
                 },
                 files: {
-                    // if the source file has an extension of es6 then
-                    // we change the name of the source file accordingly.
-                    // The result file's extension is always .js
                     "./dist/bundle.js": ["./src/index.js"]
                 }
             }
@@ -31,8 +28,8 @@ module.exports = function (grunt) {
                 tasks: ["browserify"]
             },
             templates: {
-                files: ["./src/**/*.hb.html"],
-                tasks: ["browserify"],
+                files: ["./src/**/*.hbs"],
+                tasks: ["live-handlebars", "browserify"],
                 options: {
                     spawn: false,
                 }
@@ -46,4 +43,19 @@ module.exports = function (grunt) {
 
     grunt.registerTask("default", ["watch"]);
     grunt.registerTask("build", ["browserify"]);
+
+    grunt.event.on('watch', function(action, filepath, target) {
+        if(target === 'templates') { 
+            var config = grunt.config("live-handlebars") || {};
+            config.source = filepath;
+            config.target = filepath.slice(0, -4) + '_render.js'; // Change extension from .hbs to .js
+            grunt.config("live-handlebars", config);
+        }
+    });
+
+    var compile = require('handlebars-live-templates-idom');
+    grunt.registerTask('live-handlebars', 'Compile handlebars template to render function module.', function() {
+        var config = grunt.config("live-handlebars");
+        compile(config.source, config.target);
+    });
 };

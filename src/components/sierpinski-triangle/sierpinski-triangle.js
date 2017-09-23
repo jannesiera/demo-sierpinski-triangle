@@ -1,4 +1,4 @@
-import { render } from './sierpinski-triangle.hb';
+import { render } from './sierpinski-triangle_render.js';
 import { LiveHandlebars } from '../../live-handlebars';
 
 class SierpinskiTriangle extends LiveHandlebars {

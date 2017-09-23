@@ -19,9 +19,9 @@
   "dependencies": {
     "babel-plugin-transform-builtin-classes": "^0.4.0",
     "handlebars-live-templates-component": "^0.0.0",
-    "handlebars-live-templates-idom": "^0.0.0",
+    "handlebars-live-templates-idom": "0.0.0",
     "incremental-dom": "^0.5.1",
-    "render-component": "^0.0.1"
+    "render-component": "0.0.2"
   },
   "devDependencies": {
     "babel": "^6.23.0",

@@ -1610,6 +1610,275 @@ process.umask = function() { return 0; };
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+// Peforms: (de)serialization, observed properties and automatic rendering (in animationframe)
+
+/* Attributes to properties */
+// Assumes property names as fooBar and attribute names as foo-bar and maps them accordingly
+// Inspired by: https://github.com/elix/elix/blob/master/mixins/AttributeMarshallingMixin.js
+
+var deserialize = {
+    bool: function bool(val) {
+        if (val === true || val == 'true') return true;
+        if (val === false || val == 'false') return false;
+        return null;
+    },
+    string: function string(val) {
+        return val + "";
+    },
+    func: function func(val) {
+        if (typeof val === 'function') return val;
+        if (typeof val === 'string') {
+            if (window[val]) return window[val];
+            return new Function(val);
+        }
+        return null;
+    },
+    object: function object(val) {
+        if ((typeof val === 'undefined' ? 'undefined' : _typeof(val)) === 'object') return val;
+        return null; // TODO try JSON.deserialize
+    },
+    array: function array(val) {
+        throw 'not implemented';
+    },
+    date: function date(val) {
+        throw 'not implemented';
+    },
+    number: function number(val) {
+        var val = Number(val);
+        if (isNaN(val)) return null;
+        return val;
+    },
+    any: function any(val) {
+        return val;
+    }
+};
+
+var defaultValues = {
+    bool: true,
+    string: '',
+    func: function func() {},
+    object: {},
+    array: [],
+    date: null,
+    number: 0,
+    any: ''
+};
+
+var RenderComponent = function (_HTMLElement) {
+    _inherits(RenderComponent, _HTMLElement);
+
+    function RenderComponent() {
+        _classCallCheck(this, RenderComponent);
+
+        // Create a (private) properties object with custom getter/setter
+        var _this = _possibleConstructorReturn(this, (RenderComponent.__proto__ || Object.getPrototypeOf(RenderComponent)).call(this));
+
+        var observedAttributes = [];
+        Object.keys(_this.constructor.properties).forEach(function (key) {
+            var backingProperty = Symbol(key);
+            Object.defineProperty(_this, key, {
+                get: function get() {
+                    return this[backingProperty];
+                },
+                set: function set(val) {
+                    if (deserialize[this.constructor.properties[key].type]) {
+                        val = deserialize[this.constructor.properties[key].type](val);
+                        if (val === null) return;
+                    }
+                    if (this[backingProperty] === val) return;
+                    this[backingProperty] = val;
+                    // Schedule a render
+                    this._scheduleRender();
+                    if (this.constructor.properties[key].attribute) {
+                        // TODO map prop name to attr name
+                        this.setAttribute(key, val); // Sync attribute
+                    }
+                    //this.render();
+                }
+            });
+            if (_this.constructor.properties[key].attribute) {
+                observedAttributes.push(key); // TODO map prop name to attr name
+            }
+            // Set default val based on type
+            _this[backingProperty] = defaultValues[_this.constructor.properties[key].type];
+        });
+        return _this;
+    }
+
+    _createClass(RenderComponent, [{
+        key: 'connectedCallback',
+
+
+        // Element appended to the DOM
+        value: function connectedCallback() {
+            var _this2 = this;
+
+            this._scheduleRender();
+            Object.keys(this.constructor.properties).forEach(function (key) {
+                // Set default property values (if defined)
+                if ('value' in _this2.constructor.properties[key]) {
+                    _this2[key] = _this2.constructor.properties[key].value;
+                }
+            });
+        }
+    }, {
+        key: '_scheduleRender',
+        value: function _scheduleRender() {
+            var _this3 = this;
+
+            if (this._renderScheduled) return;
+            this._renderScheduled = true;
+            requestAnimationFrame(function () {
+                _this3._renderScheduled = false;
+                _this3.render();
+            });
+        }
+    }, {
+        key: 'attributeChangedCallback',
+        value: function attributeChangedCallback(attributeName, oldValue, newValue) {
+            if (_get(RenderComponent.prototype.__proto__ || Object.getPrototypeOf(RenderComponent.prototype), 'attributeChangedCallback', this)) {
+                _get(RenderComponent.prototype.__proto__ || Object.getPrototypeOf(RenderComponent.prototype), 'attributeChangedCallback', this).call(this);
+            }
+            if (oldValue === newValue) return;
+            var propertyName = attributeToPropertyName(attributeName);
+            if (propertyName in this) {
+                this[propertyName] = newValue;
+            }
+        }
+    }]);
+
+    return RenderComponent;
+}(HTMLElement);
+
+// Memoized maps of attribute to property names and vice versa.
+
+
+var attributeToPropertyNames = {};
+var propertyNamesToAttributes = {};
+
+/**
+ * Convert hyphenated foo-bar attribute name to camel case fooBar property name.
+ */
+function attributeToPropertyName(attributeName) {
+    var propertyName = attributeToPropertyNames[attributeName];
+    if (!propertyName) {
+        // Convert and memoize.
+        var hyphenRegEx = /-([a-z])/g;
+        propertyName = attributeName.replace(hyphenRegEx, function (match) {
+            return match[1].toUpperCase();
+        });
+        attributeToPropertyNames[attributeName] = propertyName;
+    }
+    return propertyName;
+}
+
+exports.RenderComponent = RenderComponent;
+
+},{}],4:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+exports.ExampleApplication = undefined;
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _exampleApplication_render = require('./example-application_render.js');
+
+var _liveHandlebars = require('../../live-handlebars');
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var ExampleApplication = function (_LiveHandlebars) {
+    _inherits(ExampleApplication, _LiveHandlebars);
+
+    function ExampleApplication() {
+        _classCallCheck(this, ExampleApplication);
+
+        return _possibleConstructorReturn(this, (ExampleApplication.__proto__ || Object.getPrototypeOf(ExampleApplication)).apply(this, arguments));
+    }
+
+    _createClass(ExampleApplication, [{
+        key: 'connectedCallback',
+        value: function connectedCallback() {
+            var _this2 = this;
+
+            _get(ExampleApplication.prototype.__proto__ || Object.getPrototypeOf(ExampleApplication.prototype), 'connectedCallback', this).call(this);
+            this.seconds = 0;
+            setInterval(function () {
+                _this2.seconds = _this2.seconds % 10 + 1;
+            }, 1000);
+        }
+    }, {
+        key: 'viewModel',
+        get: function get() {
+            var t = this.elapsed / 1000 % 10;
+            var scale = 1 + (t > 5 ? 10 - t : t) / 10;
+            var transform = 'scaleX(' + scale / 2.1 + ') scaleY(0.7) translateZ(0.1px)';
+
+            return {
+                scale: scale / 2.1,
+                seconds: this.seconds,
+                x: 0,
+                y: 0,
+                s: 1000
+            };
+        }
+    }, {
+        key: 'template',
+        get: function get() {
+            return _exampleApplication_render.render;
+        }
+    }], [{
+        key: 'properties',
+        get: function get() {
+            return {
+                elapsed: {
+                    type: 'number',
+                    value: 0
+                },
+                seconds: {}
+            };
+        }
+    }, {
+        key: 'observedAttributes',
+        get: function get() {
+            return ['elapsed'];
+        }
+    }]);
+
+    return ExampleApplication;
+}(_liveHandlebars.LiveHandlebars);
+
+window.customElements.define('example-application', ExampleApplication);
+exports.ExampleApplication = ExampleApplication;
+
+},{"../../live-handlebars":11,"./example-application_render.js":5}],5:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.render = undefined;
@@ -1745,19 +2014,17 @@ var render = function render(el, data) {
 };
 exports.render = render;
 
-},{"incremental-dom":1}],4:[function(require,module,exports){
+},{"incremental-dom":1}],6:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
     value: true
 });
-exports.ExampleApplication = undefined;
+exports.SierpinskiTriangle = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _exampleApplication = require('./example-application.hb');
+var _sierpinskiTriangle_render = require('./sierpinski-triangle_render.js');
 
 var _liveHandlebars = require('../../live-handlebars');
 
@@ -1767,71 +2034,82 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var ExampleApplication = function (_LiveHandlebars) {
-    _inherits(ExampleApplication, _LiveHandlebars);
+var SierpinskiTriangle = function (_LiveHandlebars) {
+    _inherits(SierpinskiTriangle, _LiveHandlebars);
 
-    function ExampleApplication() {
-        _classCallCheck(this, ExampleApplication);
+    function SierpinskiTriangle() {
+        _classCallCheck(this, SierpinskiTriangle);
 
-        return _possibleConstructorReturn(this, (ExampleApplication.__proto__ || Object.getPrototypeOf(ExampleApplication)).apply(this, arguments));
+        return _possibleConstructorReturn(this, (SierpinskiTriangle.__proto__ || Object.getPrototypeOf(SierpinskiTriangle)).apply(this, arguments));
     }
 
-    _createClass(ExampleApplication, [{
-        key: 'connectedCallback',
-        value: function connectedCallback() {
-            var _this2 = this;
-
-            _get(ExampleApplication.prototype.__proto__ || Object.getPrototypeOf(ExampleApplication.prototype), 'connectedCallback', this).call(this);
-            this.seconds = 0;
-            setInterval(function () {
-                _this2.seconds = _this2.seconds % 10 + 1;
-            }, 1000);
-        }
-    }, {
+    _createClass(SierpinskiTriangle, [{
         key: 'viewModel',
         get: function get() {
-            var t = this.elapsed / 1000 % 10;
-            var scale = 1 + (t > 5 ? 10 - t : t) / 10;
-            var transform = 'scaleX(' + scale / 2.1 + ') scaleY(0.7) translateZ(0.1px)';
+            var x = this.x;
+            var y = this.y;
+            var s = this.s;
+            var targetSize = window.targetSize || 50;
 
+            var norecurse = s <= targetSize; // targetSize=global
+            s = s / 2;
             return {
-                scale: scale / 2.1,
-                seconds: this.seconds,
-                x: 0,
-                y: 0,
-                s: 1000
+                norecurse: norecurse,
+                recurse: !norecurse,
+                targetSize: targetSize, // targetSize=global
+                x1: x,
+                y1: y - s / 2,
+                x2: x - s,
+                y2: y + s / 2,
+                x3: x + s,
+                y3: y + s / 2,
+                x4: x - targetSize / 2, // targetSize=global
+                y4: y - targetSize / 2, // targetSize=global
+                s: s,
+                seconds: this.seconds
             };
         }
     }, {
         key: 'template',
         get: function get() {
-            return _exampleApplication.render;
+            return _sierpinskiTriangle_render.render;
         }
     }], [{
         key: 'properties',
         get: function get() {
             return {
-                elapsed: {
+                x: {
                     type: 'number',
                     value: 0
                 },
-                seconds: {}
+                y: {
+                    type: 'number',
+                    value: 0
+                },
+                s: {
+                    type: 'number',
+                    value: 0
+                },
+                seconds: {
+                    type: 'number',
+                    value: 0
+                }
             };
         }
     }, {
         key: 'observedAttributes',
         get: function get() {
-            return ['elapsed'];
+            return ['x', 'y', 's', 'seconds'];
         }
     }]);
 
-    return ExampleApplication;
+    return SierpinskiTriangle;
 }(_liveHandlebars.LiveHandlebars);
 
-window.customElements.define('example-application', ExampleApplication);
-exports.ExampleApplication = ExampleApplication;
+window.customElements.define('sierpinski-triangle', SierpinskiTriangle);
+exports.SierpinskiTriangle = SierpinskiTriangle;
 
-},{"../../live-handlebars":10,"./example-application.hb":3}],5:[function(require,module,exports){
+},{"../../live-handlebars":11,"./sierpinski-triangle_render.js":7}],7:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -2104,17 +2382,17 @@ var render = function render(el, data) {
 };
 exports.render = render;
 
-},{"incremental-dom":1}],6:[function(require,module,exports){
+},{"incremental-dom":1}],8:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
     value: true
 });
-exports.SierpinskiTriangle = undefined;
+exports.TriangleDot = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _sierpinskiTriangle = require('./sierpinski-triangle.hb');
+var _triangleDot_render = require('./triangle-dot_render.js');
 
 var _liveHandlebars = require('../../live-handlebars');
 
@@ -2124,45 +2402,47 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var SierpinskiTriangle = function (_LiveHandlebars) {
-    _inherits(SierpinskiTriangle, _LiveHandlebars);
+var TriangleDot = function (_LiveHandlebars) {
+    _inherits(TriangleDot, _LiveHandlebars);
 
-    function SierpinskiTriangle() {
-        _classCallCheck(this, SierpinskiTriangle);
+    function TriangleDot() {
+        _classCallCheck(this, TriangleDot);
 
-        return _possibleConstructorReturn(this, (SierpinskiTriangle.__proto__ || Object.getPrototypeOf(SierpinskiTriangle)).apply(this, arguments));
+        return _possibleConstructorReturn(this, (TriangleDot.__proto__ || Object.getPrototypeOf(TriangleDot)).apply(this, arguments));
     }
 
-    _createClass(SierpinskiTriangle, [{
-        key: 'viewModel',
-        get: function get() {
-            var x = this.x;
-            var y = this.y;
-            var s = this.s;
-            var targetSize = window.targetSize || 50;
-
-            var norecurse = s <= targetSize; // targetSize=global
-            s = s / 2;
-            return {
-                norecurse: norecurse,
-                recurse: !norecurse,
-                targetSize: targetSize, // targetSize=global
-                x1: x,
-                y1: y - s / 2,
-                x2: x - s,
-                y2: y + s / 2,
-                x3: x + s,
-                y3: y + s / 2,
-                x4: x - targetSize / 2, // targetSize=global
-                y4: y - targetSize / 2, // targetSize=global
-                s: s,
-                seconds: this.seconds
-            };
-        }
-    }, {
+    _createClass(TriangleDot, [{
         key: 'template',
         get: function get() {
-            return _sierpinskiTriangle.render;
+            return _triangleDot_render.render;
+        }
+    }, {
+        key: 'viewModel',
+        get: function get() {
+            var _this2 = this;
+
+            var x = this.x;
+            var y = this.y;
+            var size = this.size;
+            var s = size * 1.3;
+            var hover = this.hover || false;
+            return {
+                width: s,
+                height: s,
+                left: x,
+                top: y,
+                borderRadius: s / 2,
+                lineHeight: s,
+                seconds: this.seconds,
+                mouseover: function mouseover() {
+                    _this2.hover = true;_this2.render();
+                }, // Note: implementing this as property would eliminate the need to explicitely call render
+                mouseleave: function mouseleave() {
+                    _this2.hover = false;_this2.render();
+                },
+                nohover: !hover,
+                hover: hover
+            };
         }
     }], [{
         key: 'properties',
@@ -2176,7 +2456,7 @@ var SierpinskiTriangle = function (_LiveHandlebars) {
                     type: 'number',
                     value: 0
                 },
-                s: {
+                size: {
                     type: 'number',
                     value: 0
                 },
@@ -2189,17 +2469,17 @@ var SierpinskiTriangle = function (_LiveHandlebars) {
     }, {
         key: 'observedAttributes',
         get: function get() {
-            return ['x', 'y', 's', 'seconds'];
+            return ['x', 'y', 'size', 'seconds'];
         }
     }]);
 
-    return SierpinskiTriangle;
+    return TriangleDot;
 }(_liveHandlebars.LiveHandlebars);
 
-window.customElements.define('sierpinski-triangle', SierpinskiTriangle);
-exports.SierpinskiTriangle = SierpinskiTriangle;
+window.customElements.define('triangle-dot', TriangleDot);
+exports.TriangleDot = TriangleDot;
 
-},{"../../live-handlebars":10,"./sierpinski-triangle.hb":5}],7:[function(require,module,exports){
+},{"../../live-handlebars":11,"./triangle-dot_render.js":9}],9:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -2327,104 +2607,7 @@ var render = function render(el, data) {
 };
 exports.render = render;
 
-},{"incremental-dom":1}],8:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-    value: true
-});
-exports.TriangleDot = undefined;
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _triangleDot = require('./triangle-dot.hb');
-
-var _liveHandlebars = require('../../live-handlebars');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var TriangleDot = function (_LiveHandlebars) {
-    _inherits(TriangleDot, _LiveHandlebars);
-
-    function TriangleDot() {
-        _classCallCheck(this, TriangleDot);
-
-        return _possibleConstructorReturn(this, (TriangleDot.__proto__ || Object.getPrototypeOf(TriangleDot)).apply(this, arguments));
-    }
-
-    _createClass(TriangleDot, [{
-        key: 'template',
-        get: function get() {
-            return _triangleDot.render;
-        }
-    }, {
-        key: 'viewModel',
-        get: function get() {
-            var _this2 = this;
-
-            var x = this.x;
-            var y = this.y;
-            var size = this.size;
-            var s = size * 1.3;
-            var hover = this.hover || false;
-            return {
-                width: s,
-                height: s,
-                left: x,
-                top: y,
-                borderRadius: s / 2,
-                lineHeight: s,
-                seconds: this.seconds,
-                mouseover: function mouseover() {
-                    _this2.hover = true;_this2.render();
-                }, // Note: implementing this as property would eliminate the need to explicitely call render
-                mouseleave: function mouseleave() {
-                    _this2.hover = false;_this2.render();
-                },
-                nohover: !hover,
-                hover: hover
-            };
-        }
-    }], [{
-        key: 'properties',
-        get: function get() {
-            return {
-                x: {
-                    type: 'number',
-                    value: 0
-                },
-                y: {
-                    type: 'number',
-                    value: 0
-                },
-                size: {
-                    type: 'number',
-                    value: 0
-                },
-                seconds: {
-                    type: 'number',
-                    value: 0
-                }
-            };
-        }
-    }, {
-        key: 'observedAttributes',
-        get: function get() {
-            return ['x', 'y', 'size', 'seconds'];
-        }
-    }]);
-
-    return TriangleDot;
-}(_liveHandlebars.LiveHandlebars);
-
-window.customElements.define('triangle-dot', TriangleDot);
-exports.TriangleDot = TriangleDot;
-
-},{"../../live-handlebars":10,"./triangle-dot.hb":7}],9:[function(require,module,exports){
+},{"incremental-dom":1}],10:[function(require,module,exports){
 'use strict';
 
 var _exampleApplication = require('./components/example-application/example-application');
@@ -2433,7 +2616,7 @@ var _sierpinskiTriangle = require('./components/sierpinski-triangle/sierpinski-t
 
 var _triangleDot = require('./components/triangle-dot/triangle-dot');
 
-},{"./components/example-application/example-application":4,"./components/sierpinski-triangle/sierpinski-triangle":6,"./components/triangle-dot/triangle-dot":8}],10:[function(require,module,exports){
+},{"./components/example-application/example-application":4,"./components/sierpinski-triangle/sierpinski-triangle":6,"./components/triangle-dot/triangle-dot":8}],11:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -2485,187 +2668,4 @@ var LiveHandlebars = function (_RenderComponent) {
 
 exports.LiveHandlebars = LiveHandlebars;
 
-},{"render-component":11}],11:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-    value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// Peforms: (de)serialization, observed properties and automatic rendering (in animationframe)
-
-/* Attributes to properties */
-// Assumes property names as fooBar and attribute names as foo-bar and maps them accordingly
-// Inspired by: https://github.com/elix/elix/blob/master/mixins/AttributeMarshallingMixin.js
-
-var deserialize = {
-    bool: function bool(val) {
-        if (val === true || val == 'true') return true;
-        if (val === false || val == 'false') return false;
-        return null;
-    },
-    string: function string(val) {
-        return val + "";
-    },
-    func: function func(val) {
-        if (typeof val === 'function') return val;
-        if (typeof val === 'string') {
-            if (window[val]) return window[val];
-            return new Function(val);
-        }
-        return null;
-    },
-    object: function object(val) {
-        if ((typeof val === 'undefined' ? 'undefined' : _typeof(val)) === 'object') return val;
-        return null; // TODO try JSON.deserialize
-    },
-    array: function array(val) {
-        throw 'not implemented';
-    },
-    date: function date(val) {
-        throw 'not implemented';
-    },
-    number: function number(val) {
-        var val = Number(val);
-        if (isNaN(val)) return null;
-        return val;
-    },
-    any: function any(val) {
-        return val;
-    }
-};
-
-var defaultValues = {
-    bool: true,
-    string: '',
-    func: function func() {},
-    object: {},
-    array: [],
-    date: null,
-    number: 0,
-    any: ''
-};
-
-var RenderComponent = function (_HTMLElement) {
-    _inherits(RenderComponent, _HTMLElement);
-
-    function RenderComponent() {
-        _classCallCheck(this, RenderComponent);
-
-        // Create a (private) properties object with custom getter/setter
-        var _this = _possibleConstructorReturn(this, (RenderComponent.__proto__ || Object.getPrototypeOf(RenderComponent)).call(this));
-
-        var observedAttributes = [];
-        Object.keys(_this.constructor.properties).forEach(function (key) {
-            var backingProperty = Symbol(key);
-            Object.defineProperty(_this, key, {
-                get: function get() {
-                    return this[backingProperty];
-                },
-                set: function set(val) {
-                    if (deserialize[this.constructor.properties[key].type]) {
-                        val = deserialize[this.constructor.properties[key].type](val);
-                        if (val === null) return;
-                    }
-                    if (this[backingProperty] === val) return;
-                    this[backingProperty] = val;
-                    // Schedule a render
-                    this._scheduleRender();
-                    if (this.constructor.properties[key].attribute) {
-                        // TODO map prop name to attr name
-                        this.setAttribute(key, val); // Sync attribute
-                    }
-                    //this.render();
-                }
-            });
-            if (_this.constructor.properties[key].attribute) {
-                observedAttributes.push(key); // TODO map prop name to attr name
-            }
-            // Set default val based on type
-            _this[backingProperty] = defaultValues[_this.constructor.properties[key].type];
-        });
-        return _this;
-    }
-
-    _createClass(RenderComponent, [{
-        key: 'connectedCallback',
-
-
-        // Element appended to the DOM
-        value: function connectedCallback() {
-            var _this2 = this;
-
-            this._scheduleRender();
-            Object.keys(this.constructor.properties).forEach(function (key) {
-                // Set default property values (if defined)
-                if ('value' in _this2.constructor.properties[key]) {
-                    _this2[key] = _this2.constructor.properties[key].value;
-                }
-            });
-        }
-    }, {
-        key: '_scheduleRender',
-        value: function _scheduleRender() {
-            var _this3 = this;
-
-            if (this._renderScheduled) return;
-            this._renderScheduled = true;
-            requestAnimationFrame(function () {
-                _this3._renderScheduled = false;
-                _this3.render();
-            });
-        }
-    }, {
-        key: 'attributeChangedCallback',
-        value: function attributeChangedCallback(attributeName, oldValue, newValue) {
-            if (_get(RenderComponent.prototype.__proto__ || Object.getPrototypeOf(RenderComponent.prototype), 'attributeChangedCallback', this)) {
-                _get(RenderComponent.prototype.__proto__ || Object.getPrototypeOf(RenderComponent.prototype), 'attributeChangedCallback', this).call(this);
-            }
-            if (oldValue === newValue) return;
-            var propertyName = attributeToPropertyName(attributeName);
-            if (propertyName in this) {
-                this[propertyName] = newValue;
-            }
-        }
-    }]);
-
-    return RenderComponent;
-}(HTMLElement);
-
-// Memoized maps of attribute to property names and vice versa.
-
-
-var attributeToPropertyNames = {};
-var propertyNamesToAttributes = {};
-
-/**
- * Convert hyphenated foo-bar attribute name to camel case fooBar property name.
- */
-function attributeToPropertyName(attributeName) {
-    var propertyName = attributeToPropertyNames[attributeName];
-    if (!propertyName) {
-        // Convert and memoize.
-        var hyphenRegEx = /-([a-z])/g;
-        propertyName = attributeName.replace(hyphenRegEx, function (match) {
-            return match[1].toUpperCase();
-        });
-        attributeToPropertyNames[attributeName] = propertyName;
-    }
-    return propertyName;
-}
-
-exports.RenderComponent = RenderComponent;
-
-},{}]},{},[9]);
+},{"render-component":3}]},{},[10]);

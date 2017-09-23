@@ -1,4 +1,4 @@
-import { render } from './triangle-dot.hb';
+import { render } from './triangle-dot_render.js';
 import { LiveHandlebars } from '../../live-handlebars';
 
 class TriangleDot extends LiveHandlebars {

@@ -1,4 +1,4 @@
-import { render } from './example-application.hb';
+import { render } from './example-application_render.js';
 import { LiveHandlebars } from '../../live-handlebars';
 
 class ExampleApplication extends LiveHandlebars {
